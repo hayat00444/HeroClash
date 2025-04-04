@@ -9,7 +9,10 @@ export default function BettingControls() {
     selectedNumber,
     selectedSize,
     placeBet,
-    gameState
+    gameState,
+    setSelectedColor,
+    setSelectedNumber,
+    setSelectedSize
   } = useGame();
   
   const amounts = [
