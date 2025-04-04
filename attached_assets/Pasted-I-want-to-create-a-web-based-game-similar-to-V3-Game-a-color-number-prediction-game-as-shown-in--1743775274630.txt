@@ -1,0 +1,106 @@
+I want to create a web-based game similar to "V3.Game" (a color/number prediction game) as shown in the provided screenshots. The game allows users to predict a number (0-9) and a color (Green, Violet, Red), as well as whether the number will be "Big" (5-9) or "Small" (0-4). Users can place bets, view game history, and manage their wallet balance. The game should have a frontend for users, a backend to handle game logic and data, and an admin panel for managing the game. The project should be developed on Replit, and the code should be pushed to GitHub for version control.
+
+Requirements
+1. General Features
+Game Mechanics:
+Users can predict a number (0-9), a color (Green, Violet, Red), and whether the number is "Big" (5-9) or "Small" (0-4).
+Payout multipliers:
+Green: 2x
+Violet: 4.5x
+Red: 2x
+Number (0-9): 9x
+Big/Small: 2x
+A new game round starts every minute (e.g., "Win Go 1 minute").
+Display a countdown timer for each round (e.g., "Time remaining: 00:59").
+After each round, a random number (0-9) is generated, and the corresponding color is determined:
+Green: Numbers 1, 3, 7, 9
+Red: Numbers 2, 4, 6, 8
+Violet: Numbers 0, 5
+Users win if their prediction matches the result, and their wallet balance is updated based on the payout multiplier.
+Wallet System:
+Users start with a default balance (e.g., ₹100).
+Users can deposit and withdraw money (mock functionality for now, no real payment integration).
+Display the wallet balance on the frontend (e.g., "₹4.76").
+Game History:
+Show a table of past game results with columns: Period (e.g., 2025040401128), Number, Big/Small, Color.
+Allow users to view their own betting history ("My history").
+Chart:
+Provide a simple chart to visualize game trends (e.g., a bar chart showing the frequency of numbers or colors).
+2. Frontend (User Interface)
+Tech Stack: Use HTML, CSS, and JavaScript (React.js preferred for a dynamic UI).
+Design:
+Create a responsive UI similar to the screenshots.
+Top bar: Show the game name ("V3.Game") and wallet balance.
+Buttons for "Withdraw" and "Deposit".
+Tabs for different game modes (e.g., "Win Go 1 Min", "Win Go 30S", etc.).
+Main game area:
+Display a countdown timer for the current round.
+Show the current period (e.g., "2025040401128").
+Buttons for color predictions: Green (2x), Violet (4.5x), Red (2x).
+Number buttons (0-9) with their respective multipliers (9x).
+Big/Small buttons with multipliers (2x).
+A "Random" button to auto-select a prediction.
+Bet amount options (e.g., x1, x5, x10, x20, x50, x100).
+Bottom section:
+Tabs for "Game history", "Chart", and "My history".
+Game history table showing past results.
+Interactivity:
+Users can click to place a bet (e.g., select a color, number, or Big/Small, then choose a bet amount).
+Show real-time updates for the countdown timer.
+Display the result of each round (e.g., the winning number and color).
+Update the wallet balance after each round.
+3. Backend
+Tech Stack: Use Node.js with Express.js for the server and MongoDB for the database (or SQLite if MongoDB is not supported on Replit).
+Functionality:
+API Endpoints:
+GET /api/game/history: Fetch game history (past results).
+GET /api/user/history: Fetch the user's betting history.
+POST /api/bet: Place a bet (e.g., { userId, color, number, bigSmall, amount }).
+GET /api/user/balance: Get the user's wallet balance.
+POST /api/user/deposit: Mock deposit to add funds.
+POST /api/user/withdraw: Mock withdrawal to deduct funds.
+GET /api/game/current: Get the current game round (period, time remaining, etc.).
+Game Logic:
+Generate a random number (0-9) at the end of each round.
+Determine the color based on the number (Green: 1,3,7,9; Red: 2,4,6,8; Violet: 0,5).
+Calculate winnings based on the user's bet and the payout multiplier.
+Update the user's wallet balance.
+Database:
+Store user data (userId, balance, betting history).
+Store game history (period, number, color, big/small).
+Game Timer:
+Use a WebSocket or polling mechanism to sync the countdown timer across all users.
+Start a new round every minute.
+4. Admin Panel
+Tech Stack: Use React.js for the frontend and Node.js/Express.js for the backend.
+Features:
+Login: Simple admin login (e.g., username: "admin", password: "admin123").
+Dashboard:
+View total users, total bets, and total winnings.
+See a list of all game rounds with results.
+View user details (balance, betting history).
+Game Control:
+Manually start/stop game rounds (optional).
+Adjust payout multipliers (e.g., change Green from 2x to 3x).
+User Management:
+View all users and their balances.
+Reset a user's balance or ban a user.
+Design:
+Simple UI with tables and buttons for managing the game and users.
+5. GitHub Integration
+Initialize a Git repository in the Replit project.
+Create a GitHub repository (e.g., v3-game).
+Push the code to GitHub regularly with meaningful commit messages (e.g., "Added frontend UI", "Implemented backend game logic").
+Include a README.md file with:
+Project description.
+Setup instructions (e.g., how to run the project on Replit).
+API documentation (list of endpoints).
+6. Additional Notes
+Ensure the game is fair (random number generation should be unbiased).
+Add basic error handling (e.g., insufficient balance for a bet).
+Use environment variables for sensitive data (e.g., admin password, database connection string).
+Test the game thoroughly to ensure the timer, betting, and payouts work correctly.
+Deliverables
+A fully functional game with frontend, backend, and admin panel.
+Code pushed to a GitHub repository with a README.md.
+A link to the live Replit project where I can test the game.
