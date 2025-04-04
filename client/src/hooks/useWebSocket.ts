@@ -13,10 +13,25 @@ export default function useWebSocket(path: string) {
       clearTimeout(reconnectTimeoutRef.current);
     }
 
-    // Create WebSocket URL
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}${path}`;
-
+    // Create WebSocket URL, supporting GitHub Pages deployment
+    let wsUrl: string;
+    
+    // Check if we have an explicit API URL from environment variables
+    const apiUrl = import.meta.env.VITE_API_URL;
+    
+    if (apiUrl) {
+      // For production deployment (GitHub Pages)
+      const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
+      const apiHostname = new URL(apiUrl).host;
+      wsUrl = `${wsProtocol}//${apiHostname}${path}`;
+    } else {
+      // For local development
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      wsUrl = `${protocol}//${window.location.host}${path}`;
+    }
+    
+    console.log("Connecting to WebSocket at:", wsUrl);
+    
     // Create new WebSocket
     const ws = new WebSocket(wsUrl);
 
