@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>V3.Game - Color/Number Prediction</title>
+    <meta name="description" content="Play V3.Game - a fun color and number prediction game with real-time results and big payouts!" />
+    
+    <!-- Redirect to the main app -->
+    <script>
+      // Check if we're accessing the admin panel
+      if (window.location.hash.startsWith('#/admin')) {
+        window.location.href = "./admin.html" + window.location.hash;
+      } else {
+        window.location.href = "./play.html" + window.location.hash;
+      }
+    </script>
+  </head>
+  <body>
+    <noscript>
+      <h1>JavaScript Required</h1>
+      <p>Please enable JavaScript to play V3.Game</p>
+      <p><a href="./play.html">Click here to play V3.Game</a></p>
+      <p><a href="./admin.html">Admin access</a></p>
+    </noscript>
+  </body>
+</html>

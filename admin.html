@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>V3.Game - Admin Panel</title>
+    <meta name="description" content="Admin panel for V3.Game management" />
+    
+    <!-- Main app styles and scripts -->
+    <script type="module" crossorigin src="./assets/index.js"></script>
+    <link rel="stylesheet" href="./assets/index.css">
+    
+    <!-- API URL Configuration for deployment -->
+    <script>
+      window.API_URL = 'https://your-backend-url.com';  // Replace with your actual backend URL
+      window.IS_ADMIN = true; // Flag to indicate admin mode
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Loading state while JavaScript loads -->
+    <div id="loading" style="display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column;">
+      <div style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #e30d52; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      <p style="margin-top: 20px; font-family: Arial, sans-serif;">Loading Admin Panel...</p>
+    </div>
+    
+    <script>
+      // Hide loading when app loads
+      window.addEventListener('load', function() {
+        document.getElementById('loading').style.display = 'none';
+      });
+      
+      // Redirect non-admin users
+      if (window.location.hash !== '#/admin' && !window.location.hash.startsWith('#/admin/')) {
+        window.location.hash = '#/admin';
+      }
+    </script>
+    
+    <style>
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #1a1a1a;
+        color: white;
+      }
+    </style>
+  </body>
+</html>
