@@ -8,6 +8,8 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   balance: integer("balance").notNull().default(100), // Default starting balance (₹100)
+  isBanned: boolean("is_banned").notNull().default(false),
+  banReason: text("ban_reason"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -70,6 +72,29 @@ export const insertTransactionSchema = createInsertSchema(transactions).pick({
   amount: true,
 });
 
+// Deposit requests
+export const depositRequests = pgTable("deposit_requests", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  amount: integer("amount").notNull(),
+  orderId: text("order_id").notNull().unique(),
+  upiId: text("upi_id").notNull(),
+  status: text("status").notNull().default("pending"), // "pending", "approved", "rejected"
+  upiScreenshot: text("upi_screenshot"), // URL or path to screenshot uploaded by user
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  processedAt: timestamp("processed_at"),
+  processedBy: integer("processed_by"), // Admin ID who processed the request
+  notes: text("notes"), // Admin notes
+});
+
+export const insertDepositRequestSchema = createInsertSchema(depositRequests).pick({
+  userId: true,
+  amount: true,
+  orderId: true,
+  upiId: true,
+  upiScreenshot: true,
+});
+
 // Define color mapping
 export const NUMBER_COLOR_MAP: Record<number, string> = {
   0: "violet",
@@ -108,6 +133,9 @@ export type InsertBet = z.infer<typeof insertBetSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 
+export type DepositRequest = typeof depositRequests.$inferSelect;
+export type InsertDepositRequest = z.infer<typeof insertDepositRequestSchema>;
+
 // Game state type
 export type GameState = {
   currentPeriod: string;
@@ -139,8 +167,15 @@ export type WalletUpdateMessage = {
   balance: number;
 };
 
+export type ErrorMessage = {
+  type: 'error';
+  message: string;
+  banReason?: string;
+};
+
 export type WebSocketMessage = 
   | GameStateMessage
   | GameResultMessage
   | BetResponseMessage
-  | WalletUpdateMessage;
+  | WalletUpdateMessage
+  | ErrorMessage;

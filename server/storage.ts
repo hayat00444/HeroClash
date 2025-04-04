@@ -3,6 +3,7 @@ import {
   gameRounds, type GameRound, type InsertGameRound,
   bets, type Bet, type InsertBet,
   transactions, type Transaction, type InsertTransaction,
+  depositRequests, type DepositRequest, type InsertDepositRequest,
   NUMBER_COLOR_MAP
 } from "@shared/schema";
 import { db } from "./db";
@@ -15,6 +16,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserBalance(userId: number, newBalance: number): Promise<User>;
+  getAllUsers(): Promise<User[]>;
   
   // Game round operations
   createGameRound(round: InsertGameRound): Promise<GameRound>;
@@ -26,10 +28,25 @@ export interface IStorage {
   createBet(bet: InsertBet): Promise<Bet>;
   getUserBets(userId: number, limit: number): Promise<Bet[]>;
   updateBetResult(betId: number, isWin: boolean, payout: number): Promise<Bet>;
+  getAllBets(limit: number): Promise<Bet[]>;
   
   // Transaction operations
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   getUserTransactions(userId: number, limit: number): Promise<Transaction[]>;
+  getAllTransactions(limit: number): Promise<Transaction[]>;
+  
+  // Deposit request operations
+  createDepositRequest(request: InsertDepositRequest): Promise<DepositRequest>;
+  getDepositRequest(id: number): Promise<DepositRequest | undefined>;
+  getDepositRequestByOrderId(orderId: string): Promise<DepositRequest | undefined>;
+  getUserDepositRequests(userId: number, limit: number): Promise<DepositRequest[]>;
+  getAllDepositRequests(limit: number): Promise<DepositRequest[]>;
+  updateDepositRequestStatus(
+    requestId: number, 
+    status: string, 
+    adminId: number, 
+    notes?: string
+  ): Promise<DepositRequest>;
   
   // Game statistics
   getNumberFrequency(): Promise<Record<number, number>>;
@@ -67,6 +84,30 @@ export class DatabaseStorage implements IStorage {
     }
     
     return updatedUser;
+  }
+  
+  async updateUserBanStatus(userId: number, isBanned: boolean, banReason?: string): Promise<User> {
+    const [updatedUser] = await db
+      .update(users)
+      .set({ 
+        isBanned: isBanned,
+        banReason: banReason || null
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    if (!updatedUser) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+    
+    return updatedUser;
+  }
+  
+  async getAllUsers(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .orderBy(desc(users.id));
   }
 
   // Game round operations
@@ -140,6 +181,14 @@ export class DatabaseStorage implements IStorage {
     
     return updatedBet;
   }
+  
+  async getAllBets(limit: number): Promise<Bet[]> {
+    return await db
+      .select()
+      .from(bets)
+      .orderBy(desc(bets.timestamp))
+      .limit(limit);
+  }
 
   // Transaction operations
   async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
@@ -158,6 +207,83 @@ export class DatabaseStorage implements IStorage {
       .where(eq(transactions.userId, userId))
       .orderBy(desc(transactions.timestamp))
       .limit(limit);
+  }
+  
+  async getAllTransactions(limit: number): Promise<Transaction[]> {
+    return await db
+      .select()
+      .from(transactions)
+      .orderBy(desc(transactions.timestamp))
+      .limit(limit);
+  }
+  
+  // Deposit request operations
+  async createDepositRequest(request: InsertDepositRequest): Promise<DepositRequest> {
+    const [depositRequest] = await db
+      .insert(depositRequests)
+      .values(request)
+      .returning();
+    
+    return depositRequest;
+  }
+  
+  async getDepositRequest(id: number): Promise<DepositRequest | undefined> {
+    const [request] = await db
+      .select()
+      .from(depositRequests)
+      .where(eq(depositRequests.id, id));
+    
+    return request;
+  }
+  
+  async getDepositRequestByOrderId(orderId: string): Promise<DepositRequest | undefined> {
+    const [request] = await db
+      .select()
+      .from(depositRequests)
+      .where(eq(depositRequests.orderId, orderId));
+    
+    return request;
+  }
+  
+  async getUserDepositRequests(userId: number, limit: number): Promise<DepositRequest[]> {
+    return await db
+      .select()
+      .from(depositRequests)
+      .where(eq(depositRequests.userId, userId))
+      .orderBy(desc(depositRequests.timestamp))
+      .limit(limit);
+  }
+  
+  async getAllDepositRequests(limit: number): Promise<DepositRequest[]> {
+    return await db
+      .select()
+      .from(depositRequests)
+      .orderBy(desc(depositRequests.timestamp))
+      .limit(limit);
+  }
+  
+  async updateDepositRequestStatus(
+    requestId: number, 
+    status: string, 
+    adminId: number, 
+    notes?: string
+  ): Promise<DepositRequest> {
+    const [updatedRequest] = await db
+      .update(depositRequests)
+      .set({
+        status: status,
+        processedAt: new Date(),
+        processedBy: adminId,
+        notes: notes
+      })
+      .where(eq(depositRequests.id, requestId))
+      .returning();
+    
+    if (!updatedRequest) {
+      throw new Error(`Deposit request with ID ${requestId} not found`);
+    }
+    
+    return updatedRequest;
   }
   
   // Game statistics

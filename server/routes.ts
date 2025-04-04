@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { 
   GameRound, GameState, WebSocketMessage,
   NUMBER_COLOR_MAP, PAYOUT_MULTIPLIERS,
-  insertBetSchema, insertTransactionSchema
+  insertBetSchema, insertTransactionSchema, insertDepositRequestSchema
 } from "@shared/schema";
 import { z } from "zod";
 import { log } from "./vite";
@@ -48,6 +48,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     if (!user || user.password !== password) {
       return res.status(401).json({ message: 'Invalid username or password' });
+    }
+    
+    // Check if user is banned
+    if (user.isBanned) {
+      return res.status(403).json({ 
+        message: 'Your account has been banned', 
+        banReason: user.banReason 
+      });
     }
     
     // Set session
@@ -240,6 +248,263 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(history);
   });
   
+  // Get user deposit requests history
+  app.get('/api/user/deposits', async (req, res) => {
+    const userId = req.session?.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    const limit = parseInt(req.query.limit as string) || 20;
+    const deposits = await storage.getUserDepositRequests(userId, limit);
+    res.json(deposits);
+  });
+  
+  // Create a new deposit request
+  app.post('/api/user/request-deposit', async (req, res) => {
+    const userId = req.session?.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    const depositRequestSchema = z.object({
+      amount: z.number().positive().refine(val => [100, 200, 300, 500].includes(val), {
+        message: "Amount must be one of: 100, 200, 300, 500"
+      }),
+      upiId: z.string().min(1),
+      upiScreenshot: z.string().optional()
+    });
+    
+    try {
+      const { amount, upiId, upiScreenshot } = depositRequestSchema.parse(req.body);
+      
+      // Generate unique order ID
+      const orderId = `ORD${Date.now()}${userId}${Math.floor(Math.random() * 1000)}`;
+      
+      const depositRequest = await storage.createDepositRequest({
+        userId,
+        amount,
+        orderId,
+        upiId,
+        upiScreenshot: upiScreenshot || null
+      });
+      
+      res.status(201).json({
+        id: depositRequest.id,
+        orderId: depositRequest.orderId,
+        amount: depositRequest.amount,
+        status: depositRequest.status,
+        timestamp: depositRequest.timestamp
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      res.status(400).json({ message: 'Invalid deposit request data' });
+    }
+  });
+  
+  // ADMIN ROUTES
+  
+  // Helper middleware to check if user is admin
+  const isAdmin = async (req: any, res: any, next: any) => {
+    const userId = req.session?.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    // For simplicity, we're considering userId 1 as admin
+    // In a real app, you would have a role field in user model
+    if (userId !== 1) {
+      return res.status(403).json({ message: 'Forbidden: Admin access required' });
+    }
+    
+    next();
+  };
+  
+  // Get all users (admin only)
+  app.get('/api/admin/users', isAdmin, async (req, res) => {
+    const users = await storage.getAllUsers();
+    res.json(users);
+  });
+  
+  // Update user balance (admin only)
+  app.post('/api/admin/users/:userId/balance', isAdmin, async (req, res) => {
+    const userId = parseInt(req.params.userId);
+    const balanceSchema = z.object({
+      amount: z.number(),
+      notes: z.string().optional()
+    });
+    
+    try {
+      const { amount, notes } = balanceSchema.parse(req.body);
+      
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      const newBalance = user.balance + amount;
+      
+      // Don't allow negative balance
+      if (newBalance < 0) {
+        return res.status(400).json({ message: 'Resulting balance would be negative' });
+      }
+      
+      await storage.updateUserBalance(userId, newBalance);
+      
+      // Record transaction
+      await storage.createTransaction({
+        userId,
+        type: amount > 0 ? 'admin_credit' : 'admin_debit',
+        amount
+      });
+      
+      // Notify user through WebSocket
+      sendToUser(userId, {
+        type: 'walletUpdate',
+        balance: newBalance
+      });
+      
+      res.json({ userId, balance: newBalance });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      res.status(400).json({ message: 'Invalid request' });
+    }
+  });
+  
+  // Ban or unban a user (admin only)
+  app.post('/api/admin/users/:userId/ban-status', isAdmin, async (req, res) => {
+    const userId = parseInt(req.params.userId);
+    const banSchema = z.object({
+      isBanned: z.boolean(),
+      banReason: z.string().optional()
+    });
+    
+    try {
+      const { isBanned, banReason } = banSchema.parse(req.body);
+      
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Don't allow banning the admin account (ID 1)
+      if (userId === 1) {
+        return res.status(400).json({ message: 'Cannot ban the admin account' });
+      }
+      
+      await storage.updateUserBanStatus(userId, isBanned, banReason);
+      
+      res.json({ 
+        userId, 
+        isBanned, 
+        message: isBanned ? 'User has been banned' : 'User has been unbanned' 
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      res.status(400).json({ message: 'Invalid request' });
+    }
+  });
+  
+  // Get all bets (admin only)
+  app.get('/api/admin/bets', isAdmin, async (req, res) => {
+    const limit = parseInt(req.query.limit as string) || 100;
+    const bets = await storage.getAllBets(limit);
+    res.json(bets);
+  });
+  
+  // Get all transactions (admin only)
+  app.get('/api/admin/transactions', isAdmin, async (req, res) => {
+    const limit = parseInt(req.query.limit as string) || 100;
+    const transactions = await storage.getAllTransactions(limit);
+    res.json(transactions);
+  });
+  
+  // Get all deposit requests (admin only)
+  app.get('/api/admin/deposit-requests', isAdmin, async (req, res) => {
+    const limit = parseInt(req.query.limit as string) || 100;
+    const requests = await storage.getAllDepositRequests(limit);
+    res.json(requests);
+  });
+  
+  // Update deposit request status (admin only)
+  app.post('/api/admin/deposit-requests/:requestId/status', isAdmin, async (req, res) => {
+    const requestId = parseInt(req.params.requestId);
+    const adminId = req.session?.userId;
+    
+    if (!adminId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    const statusSchema = z.object({
+      status: z.enum(['approved', 'rejected']),
+      notes: z.string().optional()
+    });
+    
+    try {
+      const { status, notes } = statusSchema.parse(req.body);
+      
+      const depositRequest = await storage.getDepositRequest(requestId);
+      
+      if (!depositRequest) {
+        return res.status(404).json({ message: 'Deposit request not found' });
+      }
+      
+      // If request is already processed, don't allow changes
+      if (depositRequest.status !== 'pending') {
+        return res.status(400).json({ message: `Deposit request is already ${depositRequest.status}` });
+      }
+      
+      // Update deposit request status
+      const updatedRequest = await storage.updateDepositRequestStatus(
+        requestId,
+        status,
+        adminId as number,
+        notes
+      );
+      
+      // If approved, update user balance
+      if (status === 'approved') {
+        const user = await storage.getUser(depositRequest.userId);
+        
+        if (user) {
+          const newBalance = user.balance + depositRequest.amount;
+          await storage.updateUserBalance(depositRequest.userId, newBalance);
+          
+          // Record transaction
+          await storage.createTransaction({
+            userId: depositRequest.userId,
+            type: 'deposit',
+            amount: depositRequest.amount
+          });
+          
+          // Notify user through WebSocket
+          sendToUser(depositRequest.userId, {
+            type: 'walletUpdate',
+            balance: newBalance
+          });
+        }
+      }
+      
+      res.json(updatedRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      res.status(400).json({ message: 'Invalid request' });
+    }
+  });
+  
   // Get number frequency for chart
   app.get('/api/game/stats', async (req, res) => {
     const frequency = await storage.getNumberFrequency();
@@ -289,6 +554,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Check if user is banned
+      if (user.isBanned) {
+        return res.status(403).json({ 
+          message: 'Your account has been banned', 
+          banReason: user.banReason 
+        });
       }
       
       // Check balance
@@ -359,6 +632,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (data.type === 'auth' && data.userId) {
           const user = await storage.getUser(data.userId);
           if (user) {
+            // Check if user is banned
+            if (user.isBanned) {
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Your account has been banned',
+                banReason: user.banReason
+              }));
+              // Don't disconnect, but don't set the userId either
+              return;
+            }
+            
             clients.set(ws, { userId: user.id });
             
             // Send balance update

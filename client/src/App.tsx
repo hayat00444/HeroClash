@@ -40,7 +40,7 @@ function Router() {
   const isGitHubPages = import.meta.env.VITE_API_URL && !window.location.hostname.includes('localhost');
   
   return (
-    <Switch base={isGitHubPages ? '#' : undefined}>
+    <Switch>
       <Route path="/" component={Game} />
       <Route component={NotFound} />
     </Switch>
