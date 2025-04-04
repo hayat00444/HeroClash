@@ -1,7 +1,5 @@
 import { useState } from "react";
-import Header from "@/components/game/Header";
 import GameModeTabs from "@/components/game/GameModeTabs";
-import CountdownTimer from "@/components/game/CountdownTimer";
 import ColorSelection from "@/components/game/ColorSelection";
 import NumberSelection from "@/components/game/NumberSelection";
 import BigSmallSelection from "@/components/game/BigSmallSelection";
@@ -19,10 +17,12 @@ export default function Game() {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-white">
-      {/* Header with wallet and deposit/withdraw options */}
-      <Header 
-        balance={wallet.balance}
-        depositTrigger={
+      {/* Header with app name and deposit/withdraw buttons */}
+      <header className="bg-gradient-to-r from-purple-800 to-purple-600 px-4 py-2 flex justify-between items-center shadow-lg">
+        <div className="flex items-center">
+          <h1 className="text-xl font-bold">V3.Game</h1>
+        </div>
+        <div className="flex items-center space-x-3">
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="bg-white text-purple-700 hover:bg-gray-100 px-3 py-1 rounded-full text-sm font-medium">
@@ -55,8 +55,7 @@ export default function Game() {
               </div>
             </DialogContent>
           </Dialog>
-        }
-        withdrawTrigger={
+          
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="text-white hover:bg-white/10">
@@ -90,25 +89,20 @@ export default function Game() {
               </div>
             </DialogContent>
           </Dialog>
-        }
-      />
+        </div>
+      </header>
       
-      {/* Game mode tabs */}
+      {/* Game mode tabs with balance and timer */}
       <GameModeTabs />
       
       {/* Game container */}
       <div className="flex-1 p-4 flex flex-col space-y-4">
-        {/* Game info and countdown */}
+        {/* Game info */}
         <div className="flex justify-between items-center">
           <div className="bg-white bg-opacity-5 rounded-lg px-3 py-2">
             <span className="text-xs text-gray-400">Period</span>
             <div className="font-medium">{gameState?.currentPeriod || "Loading..."}</div>
           </div>
-          
-          <CountdownTimer 
-            timeRemaining={gameState?.timeRemaining || 0} 
-            totalTime={60}
-          />
         </div>
         
         {/* Color selection */}
