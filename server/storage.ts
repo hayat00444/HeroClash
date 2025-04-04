@@ -5,6 +5,8 @@ import {
   transactions, type Transaction, type InsertTransaction,
   NUMBER_COLOR_MAP
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 // Storage interface
 export interface IStorage {
@@ -33,157 +35,155 @@ export interface IStorage {
   getNumberFrequency(): Promise<Record<number, number>>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private gameRounds: Map<number, GameRound>;
-  private bets: Map<number, Bet>;
-  private transactions: Map<number, Transaction>;
-  
-  private currentUserId: number;
-  private currentGameRoundId: number;
-  private currentBetId: number;
-  private currentTransactionId: number;
-
-  constructor() {
-    this.users = new Map();
-    this.gameRounds = new Map();
-    this.bets = new Map();
-    this.transactions = new Map();
-    
-    this.currentUserId = 1;
-    this.currentGameRoundId = 1;
-    this.currentBetId = 1;
-    this.currentTransactionId = 1;
-    
-    // Add demo user
-    this.users.set(1, {
-      id: 1,
-      username: "demo",
-      password: "demo123",
-      balance: 100
-    });
-  }
-
+export class DatabaseStorage implements IStorage {
   // User operations
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentUserId++;
-    const user: User = { ...insertUser, id, balance: 100 };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values({
+      ...insertUser,
+      balance: 100 // Default starting balance
+    }).returning();
     return user;
   }
   
   async updateUserBalance(userId: number, newBalance: number): Promise<User> {
-    const user = await this.getUser(userId);
-    if (!user) {
+    const [updatedUser] = await db
+      .update(users)
+      .set({ balance: newBalance })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    if (!updatedUser) {
       throw new Error(`User with ID ${userId} not found`);
     }
     
-    const updatedUser = { ...user, balance: newBalance };
-    this.users.set(userId, updatedUser);
     return updatedUser;
   }
 
   // Game round operations
   async createGameRound(insertRound: InsertGameRound): Promise<GameRound> {
-    const id = this.currentGameRoundId++;
-    const round: GameRound = { 
-      ...insertRound, 
-      id, 
-      timestamp: new Date() 
-    };
-    this.gameRounds.set(id, round);
+    const [round] = await db
+      .insert(gameRounds)
+      .values(insertRound)
+      .returning();
+    
     return round;
   }
 
   async getGameRound(id: number): Promise<GameRound | undefined> {
-    return this.gameRounds.get(id);
+    const [round] = await db
+      .select()
+      .from(gameRounds)
+      .where(eq(gameRounds.id, id));
+    
+    return round;
   }
   
   async getGameRoundByPeriod(period: string): Promise<GameRound | undefined> {
-    return Array.from(this.gameRounds.values()).find(
-      (round) => round.period === period
-    );
+    const [round] = await db
+      .select()
+      .from(gameRounds)
+      .where(eq(gameRounds.period, period));
+    
+    return round;
   }
 
   async getRecentGameRounds(limit: number): Promise<GameRound[]> {
-    return Array.from(this.gameRounds.values())
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, limit);
+    return await db
+      .select()
+      .from(gameRounds)
+      .orderBy(desc(gameRounds.timestamp))
+      .limit(limit);
   }
 
   // Bet operations
   async createBet(insertBet: InsertBet): Promise<Bet> {
-    const id = this.currentBetId++;
-    const bet: Bet = { 
-      ...insertBet, 
-      id, 
-      payout: null,
-      isWin: null,
-      timestamp: new Date() 
-    };
-    this.bets.set(id, bet);
+    const [bet] = await db
+      .insert(bets)
+      .values(insertBet)
+      .returning();
+    
     return bet;
   }
 
   async getUserBets(userId: number, limit: number): Promise<Bet[]> {
-    return Array.from(this.bets.values())
-      .filter((bet) => bet.userId === userId)
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, limit);
+    return await db
+      .select()
+      .from(bets)
+      .where(eq(bets.userId, userId))
+      .orderBy(desc(bets.timestamp))
+      .limit(limit);
   }
   
   async updateBetResult(betId: number, isWin: boolean, payout: number): Promise<Bet> {
-    const bet = this.bets.get(betId);
-    if (!bet) {
+    const [updatedBet] = await db
+      .update(bets)
+      .set({
+        isWin: isWin,
+        payout: payout
+      })
+      .where(eq(bets.id, betId))
+      .returning();
+    
+    if (!updatedBet) {
       throw new Error(`Bet with ID ${betId} not found`);
     }
     
-    const updatedBet = { ...bet, isWin, payout };
-    this.bets.set(betId, updatedBet);
     return updatedBet;
   }
 
   // Transaction operations
   async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
-    const id = this.currentTransactionId++;
-    const transaction: Transaction = { 
-      ...insertTransaction, 
-      id, 
-      timestamp: new Date() 
-    };
-    this.transactions.set(id, transaction);
+    const [transaction] = await db
+      .insert(transactions)
+      .values(insertTransaction)
+      .returning();
+    
     return transaction;
   }
 
   async getUserTransactions(userId: number, limit: number): Promise<Transaction[]> {
-    return Array.from(this.transactions.values())
-      .filter((transaction) => transaction.userId === userId)
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, limit);
+    return await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.userId, userId))
+      .orderBy(desc(transactions.timestamp))
+      .limit(limit);
   }
   
   // Game statistics
   async getNumberFrequency(): Promise<Record<number, number>> {
+    // Initialize frequency object
     const frequency: Record<number, number> = {
       0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0
     };
     
-    Array.from(this.gameRounds.values()).forEach(round => {
-      frequency[round.number]++;
+    // Get frequency counts from database
+    const results = await db
+      .select({
+        number: gameRounds.number,
+        count: sql<number>`count(${gameRounds.id})::int`
+      })
+      .from(gameRounds)
+      .groupBy(gameRounds.number);
+    
+    // Populate frequency object with results
+    results.forEach(row => {
+      frequency[row.number] = row.count;
     });
     
     return frequency;
   }
 }
 
-export const storage = new MemStorage();
+// Export an instance of DatabaseStorage
+export const storage = new DatabaseStorage();
